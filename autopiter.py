@@ -44,26 +44,23 @@ def _authorize(client: httpx.Client) -> None:
     _post(client, "Authorization", body)
 
 
-def _find_catalog(client: httpx.Client, article: str) -> str | None:
+def _find_catalog(client: httpx.Client, article: str) -> list[str]:
     body = f"<tns:Number>{article}</tns:Number>"
     root = _post(client, "FindCatalog", body)
 
-    best_id: str | None = None
-    best_rating = -1
-
+    items: list[tuple[int, str]] = []
     for item in root.findall(f".//{_NS}SearchCatalogModel"):
         rating_el = item.find(f"{_NS}SalesRating")
         article_id_el = item.find(f"{_NS}ArticleId")
 
-        if rating_el is None or article_id_el is None:
+        if article_id_el is None:
             continue
 
-        rating = int(rating_el.text or "0")
-        if rating > best_rating:
-            best_rating = rating
-            best_id = article_id_el.text
+        rating = int(rating_el.text or "0") if rating_el is not None else 0
+        items.append((rating, article_id_el.text))
 
-    return best_id
+    items.sort(key=lambda x: x[0], reverse=True)
+    return [article_id for _, article_id in items]
 
 
 def _get_prices(client: httpx.Client, article_id: str) -> list[dict]:
@@ -99,12 +96,13 @@ def get_min_price(article: str) -> dict | None:
     with httpx.Client(timeout=60.0) as client:
         _authorize(client)
 
-        article_id = _find_catalog(client, article)
-        if article_id is None:
+        article_ids = _find_catalog(client, article)
+        if not article_ids:
             return None
 
-        offers = _get_prices(client, article_id)
-        if not offers:
-            return None
+        for article_id in article_ids:
+            offers = _get_prices(client, article_id)
+            if offers:
+                return min(offers, key=lambda offer: offer["price"])
 
-        return min(offers, key=lambda offer: offer["price"])
+        return None
