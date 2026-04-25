@@ -34,7 +34,7 @@ def check_prices() -> None:
     for our_article, competitor_articles in config.ARTICLES.items():
         logger.info("Проверяем артикул: %s", our_article)
 
-        our_result = get_min_price(our_article, search_cross=0)
+        our_result = get_min_price(our_article)
         if our_result is None:
             logger.warning("Не удалось получить цену для нашего артикула %s — пропускаем", our_article)
             continue
