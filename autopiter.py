@@ -23,63 +23,30 @@ def _build_envelope(method: str, body: str) -> str:
     )
 
 
-def _post(
-    client: httpx.Client,
-    method: str,
-    body: str,
-    cookies: dict | None = None,
-) -> ET.Element:
+def _post(client: httpx.Client, method: str, body: str) -> ET.Element:
     envelope = _build_envelope(method, body)
     headers = {
         "Content-Type": "text/xml; charset=utf-8",
         "SOAPAction": f"{NS}{method}",
     }
-    response = client.post(
-        ENDPOINT,
-        content=envelope.encode("utf-8"),
-        headers=headers,
-        cookies=cookies or {},
-    )
+    response = client.post(ENDPOINT, content=envelope.encode("utf-8"), headers=headers)
     response.raise_for_status()
     return ET.fromstring(response.text)
 
 
-def _authorize(client: httpx.Client) -> dict:
+def _authorize(client: httpx.Client) -> None:
+    # httpx.Client сохраняет Set-Cookie автоматически и отправляет их в следующих запросах
     body = (
         f"<tns:UserID>{config.AUTOPITER_USER_ID}</tns:UserID>"
         f"<tns:Password>{config.AUTOPITER_PASSWORD}</tns:Password>"
         "<tns:Save>true</tns:Save>"
     )
-    envelope = _build_envelope("Authorization", body)
-    headers = {
-        "Content-Type": "text/xml; charset=utf-8",
-        "SOAPAction": f"{NS}Authorization",
-    }
-    response = client.post(
-        ENDPOINT,
-        content=envelope.encode("utf-8"),
-        headers=headers,
-    )
-    response.raise_for_status()
-
-    cookies: dict[str, str] = {}
-    for header_value in response.headers.get_list("Set-Cookie"):
-        for part in header_value.split(";"):
-            part = part.strip()
-            if part.startswith("AuthCookies="):
-                cookies["AuthCookies"] = part.split("=", 1)[1]
-                break
-
-    return cookies
+    _post(client, "Authorization", body)
 
 
-def _find_catalog(
-    client: httpx.Client,
-    article: str,
-    cookies: dict,
-) -> str | None:
+def _find_catalog(client: httpx.Client, article: str) -> str | None:
     body = f"<tns:Number>{article}</tns:Number>"
-    root = _post(client, "FindCatalog", body, cookies)
+    root = _post(client, "FindCatalog", body)
 
     best_id: str | None = None
     best_rating = -1
@@ -99,18 +66,14 @@ def _find_catalog(
     return best_id
 
 
-def _get_prices(
-    client: httpx.Client,
-    article_id: str,
-    cookies: dict,
-) -> list[dict]:
+def _get_prices(client: httpx.Client, article_id: str) -> list[dict]:
     body = (
         f"<tns:ArticleId>{article_id}</tns:ArticleId>"
         "<tns:SearchCross>1</tns:SearchCross>"
         "<tns:MinSalesRating>0</tns:MinSalesRating>"
         "<tns:MinRealTimeInProc>0</tns:MinRealTimeInProc>"
     )
-    root = _post(client, "GetPriceId", body, cookies)
+    root = _post(client, "GetPriceId", body)
 
     offers: list[dict] = []
     for item in root.findall(f".//{_NS}PriceSearchModel"):
@@ -134,13 +97,13 @@ def _get_prices(
 
 def get_min_price(article: str) -> dict | None:
     with httpx.Client(timeout=60.0) as client:
-        cookies = _authorize(client)
+        _authorize(client)
 
-        article_id = _find_catalog(client, article, cookies)
+        article_id = _find_catalog(client, article)
         if article_id is None:
             return None
 
-        offers = _get_prices(client, article_id, cookies)
+        offers = _get_prices(client, article_id)
         if not offers:
             return None
 
