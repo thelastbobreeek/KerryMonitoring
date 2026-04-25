@@ -1,0 +1,5 @@
+config.py
+prices.json
+__pycache__/
+*.pyc
+.venv/
