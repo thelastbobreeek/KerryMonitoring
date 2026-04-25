@@ -26,6 +26,6 @@ def send_alert(our_article: str, our_price: float, cheaper_offers: list[dict]) -
     message.attach(MIMEText(body, "plain", "utf-8"))
 
     context = ssl.create_default_context()
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+    with smtplib.SMTP_SSL("smtp.yandex.ru", 465, context=context) as server:
         server.login(config.EMAIL_FROM, config.EMAIL_PASSWORD)
         server.sendmail(config.EMAIL_FROM, config.EMAIL_TO, message.as_string())
