@@ -41,7 +41,10 @@ def _authorize(client: httpx.Client) -> None:
         f"<tns:Password>{config.AUTOPITER_PASSWORD}</tns:Password>"
         "<tns:Save>true</tns:Save>"
     )
-    _post(client, "Authorization", body)
+    root = _post(client, "Authorization", body)
+    result_el = root.find(f".//{_NS}AuthorizationResult")
+    if result_el is None or result_el.text != "true":
+        raise RuntimeError("Авторизация на autopiter.ru не удалась — проверьте UserID и Password в config.py")
 
 
 def _find_catalog(client: httpx.Client, article: str) -> list[str]:
@@ -103,6 +106,8 @@ def get_min_price(article: str) -> dict | None:
         for article_id in article_ids:
             offers = _get_prices(client, article_id)
             if offers:
-                return min(offers, key=lambda offer: offer["price"])
+                best = min(offers, key=lambda offer: offer["price"])
+                best["article_id"] = article_id
+                return best
 
         return None

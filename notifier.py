@@ -14,7 +14,8 @@ def send_alert(our_article: str, our_price: float, cheaper_offers: list[dict]) -
         lines.append(f"Артикул: {offer['article']}")
         lines.append(f"Каталог: {offer['catalog']}")
         lines.append(f"Цена: {offer['price']:.2f} руб.")
-        lines.append(f"Ссылка: https://autopiter.ru/search?search={offer['article']}")
+        url = f"https://autopiter.ru/goods/{offer['article'].lower()}/{offer['catalog'].lower()}/id{offer['article_id']}"
+        lines.append(f"Ссылка: {url}")
         lines.append("---")
 
     body = "\n".join(lines)
