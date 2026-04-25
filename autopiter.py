@@ -66,10 +66,10 @@ def _find_catalog(client: httpx.Client, article: str) -> list[str]:
     return [article_id for _, article_id in items]
 
 
-def _get_prices(client: httpx.Client, article_id: str) -> list[dict]:
+def _get_prices(client: httpx.Client, article_id: str, search_cross: int = 1) -> list[dict]:
     body = (
         f"<tns:ArticleId>{article_id}</tns:ArticleId>"
-        "<tns:SearchCross>1</tns:SearchCross>"
+        f"<tns:SearchCross>{search_cross}</tns:SearchCross>"
         "<tns:MinSalesRating>0</tns:MinSalesRating>"
         "<tns:MinRealTimeInProc>0</tns:MinRealTimeInProc>"
     )
@@ -95,7 +95,7 @@ def _get_prices(client: httpx.Client, article_id: str) -> list[dict]:
     return offers
 
 
-def get_min_price(article: str) -> dict | None:
+def get_min_price(article: str, search_cross: int = 1) -> dict | None:
     with httpx.Client(timeout=60.0) as client:
         _authorize(client)
 
@@ -104,7 +104,7 @@ def get_min_price(article: str) -> dict | None:
             return None
 
         for article_id in article_ids:
-            offers = _get_prices(client, article_id)
+            offers = _get_prices(client, article_id, search_cross)
             if offers:
                 best = min(offers, key=lambda offer: offer["price"])
                 best["article_id"] = article_id
