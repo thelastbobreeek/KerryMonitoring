@@ -1,8 +1,15 @@
+import logging
+import time
 import xml.etree.ElementTree as ET
 
 import httpx
 
 import config
+
+logger = logging.getLogger(__name__)
+
+_RETRIES = 3
+_RETRY_DELAY = 10
 
 ENDPOINT = "http://service.autopiter.ru/v2/price"
 NS = "http://www.autopiter.ru/"
@@ -96,18 +103,31 @@ def _get_prices(client: httpx.Client, article_id: str) -> list[dict]:
 
 
 def get_min_price(article: str) -> dict | None:
-    with httpx.Client(timeout=60.0) as client:
-        _authorize(client)
+    for attempt in range(1, _RETRIES + 1):
+        try:
+            with httpx.Client(timeout=120.0) as client:
+                _authorize(client)
 
-        article_ids = _find_catalog(client, article)
-        if not article_ids:
-            return None
+                article_ids = _find_catalog(client, article)
+                if not article_ids:
+                    return None
 
-        for article_id in article_ids:
-            offers = _get_prices(client, article_id)
-            if offers:
-                best = min(offers, key=lambda offer: offer["price"])
-                best["article_id"] = article_id
-                return best
+                for article_id in article_ids:
+                    offers = _get_prices(client, article_id)
+                    if offers:
+                        best = min(offers, key=lambda offer: offer["price"])
+                        best["article_id"] = article_id
+                        return best
 
-        return None
+                return None
+        except httpx.TimeoutException:
+            logger.warning("Таймаут при запросе артикула %s (попытка %d/%d)", article, attempt, _RETRIES)
+            if attempt < _RETRIES:
+                time.sleep(_RETRY_DELAY)
+        except httpx.HTTPError as exc:
+            logger.warning("Ошибка сети при запросе артикула %s: %s", article, exc)
+            if attempt < _RETRIES:
+                time.sleep(_RETRY_DELAY)
+
+    logger.error("Не удалось получить цену для %s после %d попыток — пропускаем", article, _RETRIES)
+    return None
