@@ -6,19 +6,27 @@ from email.mime.text import MIMEText
 import config
 
 
-def send_alert(our_article: str, our_price: float, cheaper_offers: list[dict]) -> None:
-    subject = f"⚠️ Найдены более дешёвые товары для артикула {our_article}"
+def send_alert(alerts: list[dict]) -> None:
+    subject = f"⚠️ Найдены более дешёвые товары ({len(alerts)} артикул{'а' if len(alerts) < 5 else 'ов'})"
 
-    lines = [f"Наша цена на артикул {our_article}: {our_price:.2f} руб.\n"]
-    for offer in cheaper_offers:
-        lines.append(f"Артикул: {offer['article']}")
-        lines.append(f"Каталог: {offer['catalog']}")
-        lines.append(f"Цена: {offer['price']:.2f} руб.")
-        url = f"https://autopiter.ru/goods/{offer['article'].lower()}/{offer['catalog'].lower()}/id{offer['article_id']}"
-        lines.append(f"Ссылка: {url}")
-        lines.append("---")
+    sections = []
+    for alert in alerts:
+        our_article = alert["our_article"]
+        our_price = alert["our_price"]
+        cheaper_offers = alert["cheaper_offers"]
 
-    body = "\n".join(lines)
+        lines = [f"Наша цена на артикул {our_article}: {our_price:.2f} руб.\n"]
+        for offer in cheaper_offers:
+            lines.append(f"Артикул: {offer['article']}")
+            lines.append(f"Каталог: {offer['catalog']}")
+            lines.append(f"Цена: {offer['price']:.2f} руб.")
+            url = f"https://autopiter.ru/goods/{offer['article'].lower()}/{offer['catalog'].lower()}/id{offer['article_id']}"
+            lines.append(f"Ссылка: {url}")
+            lines.append("---")
+
+        sections.append("\n".join(lines))
+
+    body = "\n\n- - -\n\n".join(sections)
 
     message = MIMEMultipart()
     message["From"] = config.EMAIL_FROM

@@ -3,3 +3,6 @@ prices.json
 __pycache__/
 *.pyc
 .venv/
+*.xls
+*.xlsx
+test_*.py

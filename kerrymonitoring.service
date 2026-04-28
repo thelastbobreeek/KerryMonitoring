@@ -1,0 +1,16 @@
+[Unit]
+Description=Kerry Price Monitoring
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/KerryMonitoring
+ExecStart=/opt/KerryMonitoring/.venv/bin/python main.py
+Restart=on-failure
+RestartSec=300
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
