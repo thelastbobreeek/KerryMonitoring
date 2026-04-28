@@ -5,7 +5,7 @@ from email.mime.text import MIMEText
 
 import config
 
-MAX_EMAIL_CHARS = 50_000
+MAX_EMAIL_CHARS = 333_333
 
 
 def _format_entry(entry: dict) -> str:
@@ -37,21 +37,17 @@ def _send_email(subject: str, body: str) -> None:
 
 def send_alert(alerts: list[dict]) -> None:
     sections = [_format_entry(e) for e in alerts]
+    full_text = "\n\n".join(sections)
 
-    parts: list[list[str]] = [[]]
-    current_length = 0
+    if len(full_text) <= MAX_EMAIL_CHARS:
+        _send_email(f"⚠️ Найдены более дешёвые товары — {len(alerts)} артикулов", full_text)
+        return
 
-    for section in sections:
-        if current_length + len(section) > MAX_EMAIL_CHARS and parts[-1]:
-            parts.append([])
-            current_length = 0
-        parts[-1].append(section)
-        current_length += len(section)
+    import math
+    num_parts = min(math.ceil(len(full_text) / MAX_EMAIL_CHARS), 3)
+    per_part = math.ceil(len(sections) / num_parts)
+    batches = [sections[i:i + per_part] for i in range(0, len(sections), per_part)]
 
-    total_parts = len(parts)
-    for i, part_sections in enumerate(parts, start=1):
-        subject = f"⚠️ Найдены более дешёвые товары — {len(alerts)} артикулов"
-        if total_parts > 1:
-            subject += f" (часть {i}/{total_parts})"
-        body = "\n\n".join(part_sections)
-        _send_email(subject, body)
+    for i, batch in enumerate(batches, start=1):
+        subject = f"⚠️ Найдены более дешёвые товары — {len(alerts)} артикулов (часть {i}/{len(batches)})"
+        _send_email(subject, "\n\n".join(batch))
