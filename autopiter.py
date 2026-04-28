@@ -124,6 +124,9 @@ def get_min_price(article: str) -> dict | None:
             logger.warning("Таймаут при запросе артикула %s (попытка %d/%d)", article, attempt, _RETRIES)
             if attempt < _RETRIES:
                 time.sleep(_RETRY_DELAY)
+        except httpx.HTTPStatusError as exc:
+            logger.warning("Артикул %s не найден на сервере (%s) — пропускаем", article, exc.response.status_code)
+            return None
         except httpx.HTTPError as exc:
             logger.warning("Ошибка сети при запросе артикула %s: %s", article, exc)
             if attempt < _RETRIES:
