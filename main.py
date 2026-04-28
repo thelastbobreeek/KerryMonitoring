@@ -8,7 +8,7 @@ import schedule
 
 import config
 from autopiter import get_min_price
-from notifier import send_alert
+from notifier import send_report
 
 PRICES_FILE = Path("prices.json")
 
@@ -31,7 +31,7 @@ def check_prices() -> None:
     logger.info("Начинаем проверку цен")
     prices = load_prices()
 
-    all_alerts: list[dict] = []
+    report_entries: list[dict] = []
 
     for our_article, competitor_articles in config.ARTICLES.items():
         logger.info("Проверяем артикул: %s", our_article)
@@ -50,7 +50,7 @@ def check_prices() -> None:
             "checked_at": datetime.now().isoformat(timespec="seconds"),
         }
 
-        cheaper_offers: list[dict] = []
+        competitors: list[dict] = []
 
         for competitor_article in competitor_articles:
             logger.info("  Проверяем конкурента: %s", competitor_article)
@@ -69,23 +69,18 @@ def check_prices() -> None:
                 "checked_at": datetime.now().isoformat(timespec="seconds"),
             }
 
-            if competitor_price < our_price:
-                cheaper_offers.append(competitor_result)
+            competitor_result["is_cheaper"] = competitor_price < our_price
+            competitors.append(competitor_result)
 
-        if cheaper_offers:
-            logger.info("Найдено %d более дешёвых предложений для %s", len(cheaper_offers), our_article)
-            all_alerts.append({
-                "our_article": our_article,
-                "our_price": our_price,
-                "cheaper_offers": cheaper_offers,
-            })
-        else:
-            logger.info("Более дешёвых предложений для %s не найдено", our_article)
+        report_entries.append({
+            "our_article": our_article,
+            "our_price": our_price,
+            "competitors": competitors,
+        })
 
-    if all_alerts:
-        logger.info("Отправляем сводный алерт по %d артикулам", len(all_alerts))
-        send_alert(all_alerts)
-        logger.info("Алерт отправлен")
+    logger.info("Отправляем отчёт по %d артикулам", len(report_entries))
+    send_report(report_entries)
+    logger.info("Отчёт отправлен")
 
     save_prices(prices)
     logger.info("Проверка завершена, данные сохранены в %s", PRICES_FILE)

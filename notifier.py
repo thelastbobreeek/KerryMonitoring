@@ -5,29 +5,30 @@ from email.mime.text import MIMEText
 
 import config
 
+MAX_EMAIL_CHARS = 50_000
 
-def send_alert(alerts: list[dict]) -> None:
-    subject = f"⚠️ Найдены более дешёвые товары ({len(alerts)} артикул{'а' if len(alerts) < 5 else 'ов'})"
 
-    sections = []
-    for alert in alerts:
-        our_article = alert["our_article"]
-        our_price = alert["our_price"]
-        cheaper_offers = alert["cheaper_offers"]
+def _format_entry(entry: dict) -> str:
+    our_article = entry["our_article"]
+    our_price = entry["our_price"]
+    competitors = entry["competitors"]
 
-        lines = [f"Наша цена на артикул {our_article}: {our_price:.2f} руб.\n"]
-        for offer in cheaper_offers:
-            lines.append(f"Артикул: {offer['article']}")
-            lines.append(f"Каталог: {offer['catalog']}")
-            lines.append(f"Цена: {offer['price']:.2f} руб.")
+    lines = [f"Артикул: {our_article}  |  Наша цена: {our_price:.2f} руб."]
+
+    if not competitors:
+        lines.append("  (конкуренты не найдены)")
+    else:
+        for offer in competitors:
+            marker = "  ⚠ ДЕШЕВЛЕ" if offer["is_cheaper"] else ""
             url = f"https://autopiter.ru/goods/{offer['article'].lower()}/{offer['catalog'].lower()}/id{offer['article_id']}"
-            lines.append(f"Ссылка: {url}")
-            lines.append("---")
+            lines.append(f"  {offer['article']}  {offer['price']:.2f} руб.  ({offer['catalog']}){marker}")
+            lines.append(f"  {url}")
 
-        sections.append("\n".join(lines))
+    lines.append("- - -")
+    return "\n".join(lines)
 
-    body = "\n\n- - -\n\n".join(sections)
 
+def _send_email(subject: str, body: str) -> None:
     message = MIMEMultipart()
     message["From"] = config.EMAIL_FROM
     message["To"] = config.EMAIL_TO
@@ -38,3 +39,25 @@ def send_alert(alerts: list[dict]) -> None:
     with smtplib.SMTP_SSL("smtp.yandex.ru", 465, context=context) as server:
         server.login(config.EMAIL_FROM, config.EMAIL_PASSWORD)
         server.sendmail(config.EMAIL_FROM, config.EMAIL_TO, message.as_string())
+
+
+def send_report(entries: list[dict]) -> None:
+    sections = [_format_entry(e) for e in entries]
+
+    parts: list[list[str]] = [[]]
+    current_length = 0
+
+    for section in sections:
+        if current_length + len(section) > MAX_EMAIL_CHARS and parts[-1]:
+            parts.append([])
+            current_length = 0
+        parts[-1].append(section)
+        current_length += len(section)
+
+    total_parts = len(parts)
+    for i, part_sections in enumerate(parts, start=1):
+        subject = f"Kerry мониторинг цен — {len(entries)} артикулов"
+        if total_parts > 1:
+            subject += f" (часть {i}/{total_parts})"
+        body = "\n\n".join(part_sections)
+        _send_email(subject, body)
