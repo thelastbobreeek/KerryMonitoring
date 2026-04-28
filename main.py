@@ -31,8 +31,6 @@ def check_prices() -> None:
     logger.info("Начинаем проверку цен")
     prices = load_prices()
 
-    all_alerts: list[dict] = []
-
     for our_article, competitor_articles in config.ARTICLES.items():
         logger.info("Проверяем артикул: %s", our_article)
 
@@ -73,21 +71,11 @@ def check_prices() -> None:
                 cheaper_offers.append(competitor_result)
 
         if cheaper_offers:
-            logger.info("Найдено %d более дешёвых предложений для %s", len(cheaper_offers), our_article)
-            all_alerts.append({
-                "our_article": our_article,
-                "our_price": our_price,
-                "cheaper_offers": cheaper_offers,
-            })
+            logger.info("Найдено %d более дешёвых предложений для %s — отправляем алерт", len(cheaper_offers), our_article)
+            send_alert(our_article, our_price, cheaper_offers)
+            logger.info("Алерт отправлен")
         else:
             logger.info("Более дешёвых предложений для %s не найдено", our_article)
-
-    if all_alerts:
-        logger.info("Отправляем сводный алерт по %d артикулам", len(all_alerts))
-        send_alert(all_alerts)
-        logger.info("Алерт отправлен")
-    else:
-        logger.info("Более дешёвых предложений не найдено — письмо не отправляется")
 
     save_prices(prices)
     logger.info("Проверка завершена, данные сохранены в %s", PRICES_FILE)
@@ -101,7 +89,7 @@ if __name__ == "__main__":
     )
 
     check_prices()
-    schedule.every(24).hours.do(check_prices)
+    schedule.every(1).hours.do(check_prices)
 
     while True:
         schedule.run_pending()
