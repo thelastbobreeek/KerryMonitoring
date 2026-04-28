@@ -7,7 +7,7 @@ from pathlib import Path
 import schedule
 
 import config
-from autopiter import get_min_price
+from autopiter import create_session, get_min_price
 from notifier import send_alert
 
 PRICES_FILE = Path("prices.json")
@@ -30,13 +30,14 @@ def save_prices(prices: dict) -> None:
 def check_prices() -> None:
     logger.info("Начинаем проверку цен")
     prices = load_prices()
+    client = create_session()
 
     all_alerts: list[dict] = []
 
     for our_article, competitor_articles in config.ARTICLES.items():
         logger.info("Проверяем артикул: %s", our_article)
 
-        our_result = get_min_price(our_article)
+        our_result = get_min_price(our_article, client)
         if our_result is None:
             logger.warning("Не удалось получить цену для нашего артикула %s — пропускаем", our_article)
             continue
@@ -54,7 +55,7 @@ def check_prices() -> None:
 
         for competitor_article in competitor_articles:
             logger.info("  Проверяем конкурента: %s", competitor_article)
-            competitor_result = get_min_price(competitor_article)
+            competitor_result = get_min_price(competitor_article, client)
 
             if competitor_result is None:
                 logger.warning("  Не удалось получить цену для артикула конкурента %s — пропускаем", competitor_article)

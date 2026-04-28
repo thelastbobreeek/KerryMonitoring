@@ -42,7 +42,6 @@ def _post(client: httpx.Client, method: str, body: str) -> ET.Element:
 
 
 def _authorize(client: httpx.Client) -> None:
-    # httpx.Client сохраняет Set-Cookie автоматически и отправляет их в следующих запросах
     body = (
         f"<tns:UserID>{config.AUTOPITER_USER_ID}</tns:UserID>"
         f"<tns:Password>{config.AUTOPITER_PASSWORD}</tns:Password>"
@@ -102,24 +101,28 @@ def _get_prices(client: httpx.Client, article_id: str) -> list[dict]:
     return offers
 
 
-def get_min_price(article: str) -> dict | None:
+def create_session() -> httpx.Client:
+    client = httpx.Client(timeout=120.0)
+    _authorize(client)
+    logger.info("Авторизация на autopiter.ru успешна")
+    return client
+
+
+def get_min_price(article: str, client: httpx.Client) -> dict | None:
     for attempt in range(1, _RETRIES + 1):
         try:
-            with httpx.Client(timeout=120.0) as client:
-                _authorize(client)
-
-                article_ids = _find_catalog(client, article)
-                if not article_ids:
-                    return None
-
-                for article_id in article_ids:
-                    offers = _get_prices(client, article_id)
-                    if offers:
-                        best = min(offers, key=lambda offer: offer["price"])
-                        best["article_id"] = article_id
-                        return best
-
+            article_ids = _find_catalog(client, article)
+            if not article_ids:
                 return None
+
+            for article_id in article_ids:
+                offers = _get_prices(client, article_id)
+                if offers:
+                    best = min(offers, key=lambda offer: offer["price"])
+                    best["article_id"] = article_id
+                    return best
+
+            return None
         except httpx.TimeoutException:
             logger.warning("Таймаут при запросе артикула %s (попытка %d/%d)", article, attempt, _RETRIES)
             if attempt < _RETRIES:
