@@ -11,19 +11,13 @@ MAX_EMAIL_CHARS = 50_000
 def _format_entry(entry: dict) -> str:
     our_article = entry["our_article"]
     our_price = entry["our_price"]
-    competitors = entry["competitors"]
+    cheaper_offers = entry["cheaper_offers"]
 
-    lines = [f"Артикул: {our_article}  |  Наша цена: {our_price:.2f} руб."]
-
-    if not competitors:
-        lines.append("  (конкуренты не найдены)")
-    else:
-        for offer in competitors:
-            marker = "  ⚠ ДЕШЕВЛЕ" if offer["is_cheaper"] else ""
-            url = f"https://autopiter.ru/goods/{offer['article'].lower()}/{offer['catalog'].lower()}/id{offer['article_id']}"
-            lines.append(f"  {offer['article']}  {offer['price']:.2f} руб.  ({offer['catalog']}){marker}")
-            lines.append(f"  {url}")
-
+    lines = [f"{our_article}: (наша цена {our_price:.2f} руб.)"]
+    for offer in cheaper_offers:
+        url = f"https://autopiter.ru/goods/{offer['article'].lower()}/{offer['catalog'].lower()}/id{offer['article_id']}"
+        lines.append(f"  {offer['article']}  {offer['price']:.2f} руб.  ({offer['catalog']})")
+        lines.append(f"  {url}")
     lines.append("- - -")
     return "\n".join(lines)
 
@@ -41,8 +35,8 @@ def _send_email(subject: str, body: str) -> None:
         server.sendmail(config.EMAIL_FROM, config.EMAIL_TO, message.as_string())
 
 
-def send_report(entries: list[dict]) -> None:
-    sections = [_format_entry(e) for e in entries]
+def send_alert(alerts: list[dict]) -> None:
+    sections = [_format_entry(e) for e in alerts]
 
     parts: list[list[str]] = [[]]
     current_length = 0
@@ -56,7 +50,7 @@ def send_report(entries: list[dict]) -> None:
 
     total_parts = len(parts)
     for i, part_sections in enumerate(parts, start=1):
-        subject = f"Kerry мониторинг цен — {len(entries)} артикулов"
+        subject = f"⚠️ Найдены более дешёвые товары — {len(alerts)} артикулов"
         if total_parts > 1:
             subject += f" (часть {i}/{total_parts})"
         body = "\n\n".join(part_sections)
