@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 _RETRIES = 3
 _RETRY_DELAY = 10
+_REQUEST_DELAY = 0.5
 
 ENDPOINT = "http://service.autopiter.ru/v2/price"
 NS = "http://www.autopiter.ru/"
@@ -117,6 +118,7 @@ def get_min_price(article: str, client: httpx.Client) -> dict | None:
 
             for article_id in article_ids:
                 offers = _get_prices(client, article_id)
+                time.sleep(_REQUEST_DELAY)
                 if offers:
                     best = min(offers, key=lambda offer: offer["price"])
                     best["article_id"] = article_id
