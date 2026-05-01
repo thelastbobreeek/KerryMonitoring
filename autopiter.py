@@ -116,6 +116,7 @@ def create_session() -> httpx.Client:
 
 
 def get_min_price(article: str, client: httpx.Client) -> dict | None:
+    global _get_price_calls
     for attempt in range(1, _RETRIES + 1):
         try:
             article_ids = _find_catalog(client, article)
