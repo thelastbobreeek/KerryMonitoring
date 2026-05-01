@@ -59,6 +59,7 @@ def build_report(rows: list[dict], all_brands: list[str]) -> bytes:
             cell = ws.cell(row=row_num, column=col_idx)
 
             if article_id and catalog and article:
+                # TODO: verify article_id (from FindCatalog) is the correct ID for this URL pattern
                 url = f"https://autopiter.ru/goods/{article.lower()}/{catalog.lower()}/id{article_id}"
                 display = f"{price:.0f}({article})"
                 cell.value = f'=HYPERLINK("{url}","{display}")'
