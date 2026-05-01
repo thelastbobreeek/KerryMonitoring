@@ -2,6 +2,9 @@ from io import BytesIO
 
 import openpyxl
 from openpyxl.styles import Font
+from openpyxl.utils import get_column_letter
+
+_COL_WIDTH = 25
 
 
 def build_report(rows: list[dict], all_brands: list[str]) -> bytes:
@@ -20,8 +23,12 @@ def build_report(rows: list[dict], all_brands: list[str]) -> bytes:
     ws.title = "Цены"
 
     fixed_headers = ["Наш бренд", "Артикул", "Наименование", "Наша цена", "Лучшая цена конкурента"]
-    comp_headers = [f"{brand}(конкурент{i + 1})" for i, brand in enumerate(all_brands)]
-    ws.append(fixed_headers + comp_headers)
+    comp_headers = list(all_brands)
+    all_headers = fixed_headers + comp_headers
+    ws.append(all_headers)
+
+    for col_idx in range(1, len(all_headers) + 1):
+        ws.column_dimensions[get_column_letter(col_idx)].width = _COL_WIDTH
 
     for row_data in rows:
         our_price = row_data["our_price"]
@@ -50,12 +57,14 @@ def build_report(rows: list[dict], all_brands: list[str]) -> bytes:
             article_id = comp.get("article_id", "")
 
             cell = ws.cell(row=row_num, column=col_idx)
-            cell.value = f"{price:.0f}({article})"
 
             if article_id and catalog and article:
                 url = f"https://autopiter.ru/goods/{article.lower()}/{catalog.lower()}/id{article_id}"
-                cell.hyperlink = url
+                display = f"{price:.0f}({article})"
+                cell.value = f'=HYPERLINK("{url}","{display}")'
                 cell.font = Font(color="0563C1", underline="single")
+            else:
+                cell.value = f"{price:.0f}({article})"
 
     buf = BytesIO()
     wb.save(buf)
