@@ -12,6 +12,9 @@ _RETRIES = 3
 _RETRY_DELAY = 10
 _REQUEST_DELAY = 0.5
 
+_session_start: float | None = None
+_get_price_calls = 0
+
 ENDPOINT = "http://service.autopiter.ru/v2/price"
 NS = "http://www.autopiter.ru/"
 _NS = f"{{{NS}}}"
@@ -103,8 +106,11 @@ def _get_prices(client: httpx.Client, article_id: str) -> list[dict]:
 
 
 def create_session() -> httpx.Client:
+    global _session_start, _get_price_calls
     client = httpx.Client(timeout=120.0)
     _authorize(client)
+    _session_start = time.monotonic()
+    _get_price_calls = 0
     logger.info("Авторизация на autopiter.ru успешна")
     return client
 
@@ -118,6 +124,7 @@ def get_min_price(article: str, client: httpx.Client) -> dict | None:
 
             for article_id in article_ids:
                 offers = _get_prices(client, article_id)
+                _get_price_calls += 1
                 time.sleep(_REQUEST_DELAY)
                 if offers:
                     best = min(offers, key=lambda offer: offer["price"])
@@ -129,7 +136,12 @@ def get_min_price(article: str, client: httpx.Client) -> dict | None:
             logger.warning("Таймаут при запросе артикула %s (попытка %d/%d)", article, attempt, _RETRIES)
             if attempt < _RETRIES:
                 time.sleep(_RETRY_DELAY)
-        except httpx.HTTPStatusError:
+        except httpx.HTTPStatusError as exc:
+            elapsed = time.monotonic() - _session_start if _session_start else 0
+            logger.warning(
+                "HTTP %d при запросе артикула %s — %d успешных GetPriceId за %.0f сек от старта сессии",
+                exc.response.status_code, article, _get_price_calls, elapsed,
+            )
             return None
         except httpx.HTTPError as exc:
             logger.warning("Ошибка сети при запросе артикула %s: %s", article, exc)
