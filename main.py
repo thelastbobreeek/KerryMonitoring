@@ -8,7 +8,8 @@ import schedule
 
 import config
 from autopiter import create_session, get_min_price
-from notifier import send_alert
+from excel_report import build_report
+from notifier import send_report
 
 PRICES_FILE = Path("prices.json")
 
@@ -32,61 +33,64 @@ def check_prices() -> None:
     prices = load_prices()
     client = create_session()
 
-    all_alerts: list[dict] = []
+    all_brands: list[str] = []
+    seen_brands: set[str] = set()
+    for article_data in config.ARTICLES.values():
+        for comp_brand in article_data["competitors"].values():
+            if comp_brand not in seen_brands:
+                all_brands.append(comp_brand)
+                seen_brands.add(comp_brand)
 
-    for our_article, competitor_articles in config.ARTICLES.items():
+    rows: list[dict] = []
+
+    for our_article, article_data in config.ARTICLES.items():
         logger.info("Проверяем артикул: %s", our_article)
 
         our_result = get_min_price(our_article, client)
         if our_result is None:
-            logger.warning("Не удалось получить цену для нашего артикула %s — пропускаем", our_article)
-            continue
-
-        our_price = our_result["price"]
-        logger.info("Наша цена для %s: %.2f руб. (%s)", our_article, our_price, our_result["catalog"])
-
-        prices[our_article] = {
-            "price": our_price,
-            "catalog": our_result["catalog"],
-            "checked_at": datetime.now().isoformat(timespec="seconds"),
-        }
-
-        cheaper_offers: list[dict] = []
-
-        for competitor_article in competitor_articles:
-            logger.info("  Проверяем конкурента: %s", competitor_article)
-            competitor_result = get_min_price(competitor_article, client)
-
-            if competitor_result is None:
-                logger.warning("  Не удалось получить цену для артикула конкурента %s — пропускаем", competitor_article)
-                continue
-
-            competitor_price = competitor_result["price"]
-            logger.info("  Цена %s: %.2f руб. (%s)", competitor_article, competitor_price, competitor_result["catalog"])
-
-            prices[competitor_article] = {
-                "price": competitor_price,
-                "catalog": competitor_result["catalog"],
+            logger.warning("Не удалось получить цену для %s — пропускаем", our_article)
+        else:
+            our_price = our_result["price"]
+            logger.info("Наша цена для %s: %.2f руб. (%s)", our_article, our_price, our_result["catalog"])
+            prices[our_article] = {
+                "price": our_price,
+                "catalog": our_result["catalog"],
                 "checked_at": datetime.now().isoformat(timespec="seconds"),
             }
 
-            if competitor_price < our_price:
-                cheaper_offers.append(competitor_result)
+        comp_best: dict[str, dict | None] = {brand: None for brand in all_brands}
 
-        if cheaper_offers:
-            logger.info("Найдено %d более дешёвых предложений для %s", len(cheaper_offers), our_article)
-            all_alerts.append({
-                "our_article": our_article,
-                "our_price": our_price,
-                "cheaper_offers": cheaper_offers,
-            })
-        else:
-            logger.info("Более дешёвых предложений для %s не найдено", our_article)
+        for comp_article, comp_brand in article_data["competitors"].items():
+            logger.info("  Проверяем конкурента: %s (%s)", comp_article, comp_brand)
+            result = get_min_price(comp_article, client)
 
-    if all_alerts:
-        logger.info("Отправляем сводный алерт по %d артикулам", len(all_alerts))
-        send_alert(all_alerts)
-        logger.info("Алерт отправлен")
+            if result is None:
+                logger.warning("  Не удалось получить цену для %s", comp_article)
+                continue
+
+            logger.info("  Цена %s: %.2f руб. (%s)", comp_article, result["price"], result["catalog"])
+            prices[comp_article] = {
+                "price": result["price"],
+                "catalog": result["catalog"],
+                "checked_at": datetime.now().isoformat(timespec="seconds"),
+            }
+
+            current_best = comp_best.get(comp_brand)
+            if current_best is None or result["price"] < current_best["price"]:
+                comp_best[comp_brand] = result
+
+        rows.append({
+            "brand": article_data["brand"],
+            "article": our_article,
+            "name": article_data["name"],
+            "our_price": our_result["price"] if our_result else None,
+            "competitors": comp_best,
+        })
+
+    logger.info("Формируем отчёт по %d артикулам", len(rows))
+    xlsx_bytes = build_report(rows, all_brands)
+    send_report(xlsx_bytes)
+    logger.info("Отчёт отправлен")
 
     save_prices(prices)
     logger.info("Проверка завершена, данные сохранены в %s", PRICES_FILE)
