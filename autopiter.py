@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 _RETRIES = 3
 _RETRY_DELAY = 10
-_REQUEST_DELAY = 0.5
+_REQUEST_DELAY = 2
 
 _session_start: float | None = None
 _get_price_calls = 0
