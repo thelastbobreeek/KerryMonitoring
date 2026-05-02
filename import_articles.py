@@ -7,7 +7,7 @@ import xlrd
 CONFIG_FILE = Path("config.py")
 
 
-def _clean_cell(cell: xlrd.sheet.Cell) -> str:
+def _clean_xls_cell(cell: xlrd.sheet.Cell) -> str:
     if cell.ctype == xlrd.XL_CELL_EMPTY:
         return ""
     if cell.ctype == xlrd.XL_CELL_NUMBER:
@@ -16,34 +16,64 @@ def _clean_cell(cell: xlrd.sheet.Cell) -> str:
     return str(cell.value).strip()
 
 
-def read_articles_from_xls(path: str, limit: int | None = None) -> dict[str, dict]:
-    workbook = xlrd.open_workbook(path)
-    sheet = workbook.sheet_by_index(0)
+def _clean_value(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float) and value == int(value):
+        return str(int(value))
+    return str(value).strip()
 
+
+def _parse_rows(rows: list[tuple], limit: int | None = None) -> dict[str, dict]:
     result: dict[str, dict] = {}
-    total_rows = min(sheet.nrows, limit) if limit else sheet.nrows
+    for i, row in enumerate(rows):
+        if limit and i >= limit:
+            break
+        if len(row) < 5:
+            continue
 
-    for row_idx in range(1, total_rows):
-        our_brand = _clean_cell(sheet.cell(row_idx, 0))         # column A
-        our_article = _clean_cell(sheet.cell(row_idx, 1))       # column B
-        comp_brand = _clean_cell(sheet.cell(row_idx, 2))        # column C
-        competitor_article = _clean_cell(sheet.cell(row_idx, 3))  # column D
-        name = _clean_cell(sheet.cell(row_idx, 4))              # column E
+        our_brand, our_article, comp_brand, competitor_article, name = (
+            _clean_value(row[0]),
+            _clean_value(row[1]),
+            _clean_value(row[2]),
+            _clean_value(row[3]),
+            _clean_value(row[4]),
+        )
 
         if not our_article or not competitor_article or our_article == competitor_article:
             continue
 
         if our_article not in result:
-            result[our_article] = {
-                "brand": our_brand,
-                "name": name,
-                "competitors": {},
-            }
+            result[our_article] = {"brand": our_brand, "name": name, "competitors": {}}
 
         if competitor_article not in result[our_article]["competitors"]:
             result[our_article]["competitors"][competitor_article] = comp_brand
 
     return result
+
+
+def read_articles_from_xls(path: str, limit: int | None = None) -> dict[str, dict]:
+    if Path(path).suffix.lower() == ".xlsx":
+        import openpyxl
+        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(min_row=2, values_only=True))
+        wb.close()
+        return _parse_rows(rows, limit)
+
+    workbook = xlrd.open_workbook(path)
+    sheet = workbook.sheet_by_index(0)
+    total_rows = min(sheet.nrows, limit) if limit else sheet.nrows
+    rows = [
+        tuple(sheet.cell(row_idx, col) for col in range(sheet.ncols))
+        for row_idx in range(1, total_rows)
+    ]
+    # xlrd cells need special cleaning — wrap them so _parse_rows can use _clean_value
+    raw_rows = [
+        tuple(_clean_xls_cell(sheet.cell(row_idx, col)) for col in range(sheet.ncols))
+        for row_idx in range(1, total_rows)
+    ]
+    return _parse_rows(raw_rows, limit)
 
 
 def _find_articles_block(content: str) -> tuple[int, int] | None:

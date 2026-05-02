@@ -8,10 +8,13 @@ import schedule
 
 import config
 from autopiter import create_session, get_min_price
+from email_receiver import fetch_latest_excel
 from excel_report import build_report
+from import_articles import read_articles_from_xls
 from notifier import send_report
 
 PRICES_FILE = Path("prices.json")
+ARTICLES_FILE = Path("articles_received.xls")
 
 logger = logging.getLogger(__name__)
 
@@ -28,14 +31,33 @@ def save_prices(prices: dict) -> None:
         json.dump(prices, file, ensure_ascii=False, indent=2)
 
 
+def _load_articles() -> dict:
+    global ARTICLES_FILE
+
+    result = fetch_latest_excel()
+    if result is not None:
+        filename, data = result
+        ARTICLES_FILE = Path(f"articles_received{Path(filename).suffix.lower()}")
+        ARTICLES_FILE.write_bytes(data)
+        logger.info("Файл артикулов обновлён из почты: %s", filename)
+
+    if ARTICLES_FILE.exists():
+        logger.info("Загружаем артикулы из %s", ARTICLES_FILE)
+        return read_articles_from_xls(str(ARTICLES_FILE))
+
+    logger.warning("Файл артикулов не найден — используем config.ARTICLES")
+    return config.ARTICLES
+
+
 def check_prices() -> None:
     logger.info("Начинаем проверку цен")
+    articles = _load_articles()
     prices = load_prices()
     client = create_session()
 
     all_brands: list[str] = []
     seen_brands: set[str] = set()
-    for article_data in config.ARTICLES.values():
+    for article_data in articles.values():
         for comp_brand in article_data["competitors"].values():
             if comp_brand not in seen_brands:
                 all_brands.append(comp_brand)
@@ -43,7 +65,7 @@ def check_prices() -> None:
 
     rows: list[dict] = []
 
-    for our_article, article_data in config.ARTICLES.items():
+    for our_article, article_data in articles.items():
         logger.info("Проверяем артикул: %s", our_article)
 
         our_result = get_min_price(our_article, client)
