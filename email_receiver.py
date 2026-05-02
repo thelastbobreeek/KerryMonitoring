@@ -18,13 +18,9 @@ def fetch_latest_excel() -> tuple[str, bytes] | None:
     Returns (filename, bytes) or None if nothing new.
     Marks the email as read on success.
     """
-    if not getattr(config, "IMAP_EMAIL", None) or not getattr(config, "IMAP_PASSWORD", None):
-        logger.debug("IMAP не настроен — пропускаем проверку почты")
-        return None
-
     try:
         with imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT) as mail:
-            mail.login(config.IMAP_EMAIL, config.IMAP_PASSWORD)
+            mail.login(config.EMAIL_FROM, config.EMAIL_PASSWORD)
             mail.select("INBOX")
 
             _, message_ids = mail.search(None, "UNSEEN")
