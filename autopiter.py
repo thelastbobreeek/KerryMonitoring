@@ -8,9 +8,13 @@ import config
 
 logger = logging.getLogger(__name__)
 
+
+class RateLimitError(Exception):
+    pass
+
 _RETRIES = 3
 _RETRY_DELAY = 10
-_REQUEST_DELAY = 2
+_REQUEST_DELAY = 3
 
 _session_start: float | None = None
 _get_price_calls = 0
@@ -143,6 +147,8 @@ def get_min_price(article: str, client: httpx.Client) -> dict | None:
                 "HTTP %d при запросе артикула %s — %d успешных GetPriceId за %.0f сек от старта сессии",
                 exc.response.status_code, article, _get_price_calls, elapsed,
             )
+            if exc.response.status_code == 500:
+                raise RateLimitError(article) from exc
             return None
         except httpx.HTTPError as exc:
             logger.warning("Ошибка сети при запросе артикула %s: %s", article, exc)
