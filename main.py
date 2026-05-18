@@ -51,7 +51,7 @@ def _load_articles() -> dict:
 
 
 def _save_progress(
-    paused_until: str,
+    paused_until: str | None,
     article_idx: int,
     our_price_fetched: bool,
     our_result: dict | None,
@@ -76,10 +76,13 @@ def _save_progress(
     }
     with PROGRESS_FILE.open("w", encoding="utf-8") as f:
         json.dump(state, f, ensure_ascii=False, indent=2)
-    logger.info(
-        "Прогресс сохранён: артикул %d/%d, конкурент %d. Возобновление: %s",
-        article_idx, len(articles_keys), comp_idx, paused_until,
-    )
+    if paused_until:
+        logger.info(
+            "Лимит API. Прогресс сохранён: артикул %d/%d, конкурент %d. Возобновление: %s",
+            article_idx, len(articles_keys), comp_idx, paused_until,
+        )
+    else:
+        logger.info("Прогресс: %d/%d артикулов завершено", article_idx, len(articles_keys))
 
 
 def _load_progress() -> dict | None:
@@ -211,6 +214,7 @@ def check_prices() -> None:
         our_result = None
         comp_start = 0
         comp_best = {brand: None for brand in all_brands}
+        _save_progress(None, i, False, None, 0, comp_best, rows, prices, all_brands, articles_keys)
 
     if PROGRESS_FILE.exists():
         PROGRESS_FILE.unlink()
