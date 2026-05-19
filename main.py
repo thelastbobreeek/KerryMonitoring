@@ -144,7 +144,7 @@ def check_prices() -> None:
         competitors_list = list(article_data["competitors"].items())
 
         if not our_price_fetched:
-            logger.info("Проверяем артикул: %s", our_article)
+            logger.info("Проверяем артикул %d/%d: %s", i + 1, len(articles_keys), our_article)
             try:
                 our_result = get_min_price(our_article, client)
             except RateLimitError:
