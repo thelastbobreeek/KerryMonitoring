@@ -143,10 +143,11 @@ def check_prices() -> None:
         article_data = articles[our_article]
         competitors_list = list(article_data["competitors"].items())
 
+        volume = article_data.get("volume") or None
         if not our_price_fetched:
             logger.info("Проверяем артикул %d/%d: %s", i + 1, len(articles_keys), our_article)
             try:
-                our_result = get_min_price(our_article, client)
+                our_result = get_min_price(our_article, client, target_volume=volume)
             except RateLimitError:
                 paused_until = (datetime.now() + timedelta(hours=24)).isoformat(timespec="seconds")
                 _save_progress(paused_until, i, False, None, 0, comp_best, rows, prices, all_brands, articles_keys)
@@ -173,7 +174,7 @@ def check_prices() -> None:
             logger.info("  Проверяем конкурента: %s (%s)", comp_article, comp_brand)
 
             try:
-                result = get_min_price(comp_article, client)
+                result = get_min_price(comp_article, client, target_volume=volume)
             except RateLimitError:
                 paused_until = (datetime.now() + timedelta(hours=24)).isoformat(timespec="seconds")
                 _save_progress(paused_until, i, True, our_result, j, comp_best, rows, prices, all_brands, articles_keys)

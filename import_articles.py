@@ -39,12 +39,13 @@ def _parse_rows(rows: list[tuple], limit: int | None = None) -> dict[str, dict]:
             _clean_value(row[3]),
             _clean_value(row[4]),
         )
+        volume = _clean_value(row[5]) if len(row) > 5 else ""
 
         if not our_article or not competitor_article or our_article == competitor_article:
             continue
 
         if our_article not in result:
-            result[our_article] = {"brand": our_brand, "name": name, "competitors": {}}
+            result[our_article] = {"brand": our_brand, "name": name, "volume": volume, "competitors": {}}
 
         if competitor_article not in result[our_article]["competitors"]:
             result[our_article]["competitors"][competitor_article] = comp_brand
@@ -99,6 +100,7 @@ def _format_articles(articles: dict) -> str:
         lines.append(f"    {repr(our_article)}: {{")
         lines.append(f'        "brand": {repr(data["brand"])},')
         lines.append(f'        "name": {repr(data["name"])},')
+        lines.append(f'        "volume": {repr(data.get("volume", ""))},')
         lines.append(f'        "competitors": {{')
         for comp_article, comp_brand in data["competitors"].items():
             lines.append(f"            {repr(comp_article)}: {repr(comp_brand)},")
