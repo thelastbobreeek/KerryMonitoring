@@ -258,7 +258,7 @@ if __name__ == "__main__":
     )
 
     check_prices()
-    schedule.every(24).hours.do(check_prices)
+    schedule.every(1).hours.do(check_prices)
 
     while True:
         schedule.run_pending()
