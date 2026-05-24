@@ -106,6 +106,7 @@ def check_prices() -> None:
     merged: dict = {}
     if attachments:
         DONE_FLAG.unlink(missing_ok=True)
+        PROGRESS_FILE.unlink(missing_ok=True)
         for filename, data in attachments:
             tmp = Path(f"articles_received{Path(filename).suffix.lower()}")
             tmp.write_bytes(data)
