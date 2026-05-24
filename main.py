@@ -16,6 +16,7 @@ from notifier import send_report
 PRICES_FILE = Path("prices.json")
 ARTICLES_FILE = Path("articles_received.xls")
 PROGRESS_FILE = Path("progress_state.json")
+DONE_FLAG = Path("articles_done.flag")
 
 logger = logging.getLogger(__name__)
 
@@ -33,19 +34,9 @@ def save_prices(prices: dict) -> None:
 
 
 def _load_articles() -> dict:
-    global ARTICLES_FILE
-
-    result = fetch_latest_excel()
-    if result is not None:
-        filename, data = result
-        ARTICLES_FILE = Path(f"articles_received{Path(filename).suffix.lower()}")
-        ARTICLES_FILE.write_bytes(data)
-        logger.info("Файл артикулов обновлён из почты: %s", filename)
-
     if ARTICLES_FILE.exists():
         logger.info("Загружаем артикулы из %s", ARTICLES_FILE)
         return read_articles_from_xls(str(ARTICLES_FILE))
-
     logger.warning("Файл артикулов не найден — используем config.ARTICLES")
     return config.ARTICLES
 
@@ -100,6 +91,21 @@ def _wait_until(iso_timestamp: str) -> None:
 
 
 def check_prices() -> None:
+    global ARTICLES_FILE
+
+    email_result = fetch_latest_excel()
+    if email_result is not None:
+        filename, data = email_result
+        ARTICLES_FILE = Path(f"articles_received{Path(filename).suffix.lower()}")
+        ARTICLES_FILE.write_bytes(data)
+        DONE_FLAG.unlink(missing_ok=True)
+        logger.info("Новый файл артикулов из почты: %s", filename)
+    elif PROGRESS_FILE.exists():
+        logger.info("Продолжаем незавершённый запуск")
+    elif DONE_FLAG.exists():
+        logger.info("Таблица уже обработана, новых писем нет — пропускаем")
+        return
+
     logger.info("Начинаем проверку цен")
     articles = _load_articles()
     prices = load_prices()
@@ -226,6 +232,7 @@ def check_prices() -> None:
     logger.info("Отчёт отправлен")
 
     save_prices(prices)
+    DONE_FLAG.touch()
     logger.info("Проверка завершена, данные сохранены в %s", PRICES_FILE)
 
 
