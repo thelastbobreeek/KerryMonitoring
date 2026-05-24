@@ -7,7 +7,7 @@ import xlrd
 CONFIG_FILE = Path("config.py")
 
 
-_CYRILLIC_TO_LATIN = str.maketrans("АВСЕКМНОРТХавсеорхт", "ABCEKMHOPTXabceophxt")
+_CYRILLIC_TO_LATIN = str.maketrans("АВСЕКМНОРТХавсеорхт", "ABCEKMHOPTXabceopxt")
 
 
 def _normalize_article(s: str) -> str:
