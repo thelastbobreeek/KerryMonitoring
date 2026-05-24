@@ -8,7 +8,7 @@ import schedule
 
 import config
 from autopiter import RateLimitError, create_session, get_min_price
-from email_receiver import fetch_latest_excel
+from email_receiver import fetch_excel_attachments
 from excel_report import build_report
 from import_articles import read_articles_from_xls
 from notifier import send_report
@@ -31,6 +31,15 @@ def load_prices() -> dict:
 def save_prices(prices: dict) -> None:
     with PRICES_FILE.open("w", encoding="utf-8") as file:
         json.dump(prices, file, ensure_ascii=False, indent=2)
+
+
+def _merge_articles(base: dict, incoming: dict) -> dict:
+    for article, data in incoming.items():
+        if article not in base:
+            base[article] = data
+        else:
+            base[article]["competitors"].update(data["competitors"])
+    return base
 
 
 def _load_articles() -> dict:
@@ -93,13 +102,18 @@ def _wait_until(iso_timestamp: str) -> None:
 def check_prices() -> None:
     global ARTICLES_FILE
 
-    email_result = fetch_latest_excel()
-    if email_result is not None:
-        filename, data = email_result
-        ARTICLES_FILE = Path(f"articles_received{Path(filename).suffix.lower()}")
-        ARTICLES_FILE.write_bytes(data)
+    attachments = fetch_excel_attachments()
+    merged: dict = {}
+    if attachments:
         DONE_FLAG.unlink(missing_ok=True)
-        logger.info("Новый файл артикулов из почты: %s", filename)
+        for filename, data in attachments:
+            tmp = Path(f"articles_received{Path(filename).suffix.lower()}")
+            tmp.write_bytes(data)
+            ARTICLES_FILE = tmp
+            incoming = read_articles_from_xls(str(tmp))
+            _merge_articles(merged, incoming)
+            logger.info("Загружено %d артикулов из %s", len(incoming), filename)
+        logger.info("Итого артикулов после слияния: %d", len(merged))
     elif PROGRESS_FILE.exists():
         logger.info("Продолжаем незавершённый запуск")
     elif DONE_FLAG.exists():
@@ -107,7 +121,7 @@ def check_prices() -> None:
         return
 
     logger.info("Начинаем проверку цен")
-    articles = _load_articles()
+    articles = merged if attachments else _load_articles()
     prices = load_prices()
 
     all_brands: list[str] = []
