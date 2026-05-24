@@ -7,6 +7,14 @@ import xlrd
 CONFIG_FILE = Path("config.py")
 
 
+_CYRILLIC_TO_LATIN = str.maketrans("АВСЕКМНОРТХавсеорхт", "ABCEKMHOPTXabceophxt")
+
+
+def _normalize_article(s: str) -> str:
+    """Replace Cyrillic lookalike characters with their Latin equivalents."""
+    return s.translate(_CYRILLIC_TO_LATIN)
+
+
 def _clean_xls_cell(cell: xlrd.sheet.Cell) -> str:
     if cell.ctype == xlrd.XL_CELL_EMPTY:
         return ""
@@ -34,9 +42,9 @@ def _parse_rows(rows: list[tuple], limit: int | None = None) -> dict[str, dict]:
 
         our_brand, our_article, comp_brand, competitor_article, name = (
             _clean_value(row[0]),
-            _clean_value(row[1]),
+            _normalize_article(_clean_value(row[1])),
             _clean_value(row[2]),
-            _clean_value(row[3]),
+            _normalize_article(_clean_value(row[3])),
             _clean_value(row[4]),
         )
         volume = _clean_value(row[5]) if len(row) > 5 else ""
