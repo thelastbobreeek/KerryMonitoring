@@ -22,7 +22,7 @@ def build_report(rows: list[dict], all_brands: list[str]) -> bytes:
     ws = wb.active
     ws.title = "Цены"
 
-    fixed_headers = ["Наш бренд", "Артикул", "Наименование", "Наша цена", "Лучшая цена конкурента"]
+    fixed_headers = ["Наш бренд", "Артикул", "Наименование", "Объем", "Наша цена", "Лучшая цена конкурента"]
     comp_headers = list(all_brands)
     all_headers = fixed_headers + comp_headers
     ws.append(all_headers)
@@ -41,12 +41,13 @@ def build_report(rows: list[dict], all_brands: list[str]) -> bytes:
             row_data["brand"],
             row_data["article"],
             row_data["name"],
+            row_data.get("volume"),
             our_price,
             best_comp_price,
         ])
         row_num = ws.max_row
 
-        for col_idx, brand in enumerate(all_brands, start=6):
+        for col_idx, brand in enumerate(all_brands, start=7):
             comp = comp_results.get(brand)
             if not comp or comp.get("price") is None:
                 continue
@@ -90,6 +91,7 @@ def build_report(rows: list[dict], all_brands: list[str]) -> bytes:
             row_data["brand"],
             row_data["article"],
             row_data["name"],
+            row_data.get("volume"),
             our_price,
             best_comp_price,
         ])
@@ -102,7 +104,7 @@ def build_report(rows: list[dict], all_brands: list[str]) -> bytes:
         )
 
         for rank, (brand, comp) in enumerate(sorted_competitors, start=1):
-            col_idx = 5 + rank
+            col_idx = 6 + rank
             price = comp["price"]
             article = comp["article"]
             catalog = comp.get("catalog", "")

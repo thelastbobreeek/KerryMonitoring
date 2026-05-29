@@ -228,6 +228,7 @@ def check_prices() -> None:
             "brand": article_data["brand"],
             "article": our_article,
             "name": article_data["name"],
+            "volume": article_data.get("volume") or None,
             "our_price": our_result["price"] if our_result else None,
             "competitors": comp_best,
         })
