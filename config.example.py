@@ -15,9 +15,9 @@ ARTICLES = {
         "brand": "KERRY",
         "name": "Очиститель тормозов",
         "competitors": {
-            "A9601": "AXIOM",
-            "BC-810-RW": "Abro",
-            "PAC105": "Pacific",
+            "A9601": {"brand": "AXIOM", "name": "Очиститель тормозов AXIOM"},
+            "BC-810-RW": {"brand": "Abro", "name": "Очиститель тормозов ABRO"},
+            "PAC105": {"brand": "Pacific", "name": "Очиститель тормозов Pacific"},
         },
     },
 }

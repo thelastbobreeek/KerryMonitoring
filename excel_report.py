@@ -7,6 +7,19 @@ from openpyxl.utils import get_column_letter
 _COL_WIDTH = 25
 
 
+def _competitor_display(comp: dict, brand: str | None = None) -> str:
+    display = f'{comp["price"]:.0f}₽ ({comp["article"]})'
+    if brand:
+        display += f" — {brand}"
+    if comp.get("input_name"):
+        display += f' — {comp["input_name"]}'
+    return display
+
+
+def _hyperlink_formula(url: str, display: str) -> str:
+    return f'=HYPERLINK("{url}","{display.replace(chr(34), chr(34) * 2)}")'
+
+
 def build_report(rows: list[dict], all_brands: list[str]) -> bytes:
     """
     rows: list of {
@@ -61,11 +74,11 @@ def build_report(rows: list[dict], all_brands: list[str]) -> bytes:
 
             if article_id and catalog and article:
                 url = f"https://autopiter.ru/goods/{article.lower()}/{catalog.lower()}/id{article_id}"
-                display = f"{price:.0f}({article})"
-                cell.value = f'=HYPERLINK("{url}","{display}")'
+                display = _competitor_display(comp)
+                cell.value = _hyperlink_formula(url, display)
                 cell.font = Font(color="0563C1", underline="single")
             else:
-                cell.value = f"{price:.0f}({article})"
+                cell.value = _competitor_display(comp)
 
     max_rank = max(
         (sum(1 for v in row["competitors"].values() if v and v.get("price") is not None)
@@ -109,12 +122,12 @@ def build_report(rows: list[dict], all_brands: list[str]) -> bytes:
             article = comp["article"]
             catalog = comp.get("catalog", "")
             article_id = comp.get("article_id", "")
-            display = f'{price:.0f}₽({article}) - {brand}'
+            display = _competitor_display(comp, brand)
 
             cell = ws2.cell(row=row_num, column=col_idx)
             if article_id and catalog and article:
                 url = f"https://autopiter.ru/goods/{article.lower()}/{catalog.lower()}/id{article_id}"
-                cell.value = f'=HYPERLINK("{url}","{display}")'
+                cell.value = _hyperlink_formula(url, display)
                 cell.font = Font(color="0563C1", underline="single")
             else:
                 cell.value = display

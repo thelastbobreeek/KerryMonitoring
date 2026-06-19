@@ -21,6 +21,12 @@ DONE_FLAG = Path("articles_done.flag")
 logger = logging.getLogger(__name__)
 
 
+def _competitor_details(value: str | dict) -> tuple[str, str]:
+    if isinstance(value, dict):
+        return value["brand"], value.get("name", "")
+    return value, ""
+
+
 def load_prices() -> dict:
     if not PRICES_FILE.exists():
         return {}
@@ -128,7 +134,8 @@ def check_prices() -> None:
     all_brands: list[str] = []
     seen_brands: set[str] = set()
     for article_data in articles.values():
-        for comp_brand in article_data["competitors"].values():
+        for competitor in article_data["competitors"].values():
+            comp_brand, _ = _competitor_details(competitor)
             if comp_brand not in seen_brands:
                 all_brands.append(comp_brand)
                 seen_brands.add(comp_brand)
@@ -162,7 +169,10 @@ def check_prices() -> None:
     while i < len(articles_keys):
         our_article = articles_keys[i]
         article_data = articles[our_article]
-        competitors_list = list(article_data["competitors"].items())
+        competitors_list = [
+            (article, *_competitor_details(competitor))
+            for article, competitor in article_data["competitors"].items()
+        ]
 
         volume = article_data.get("volume") or None
         if not our_price_fetched:
@@ -191,7 +201,7 @@ def check_prices() -> None:
         rate_limited = False
         j = comp_start
         while j < len(competitors_list):
-            comp_article, comp_brand = competitors_list[j]
+            comp_article, comp_brand, comp_name = competitors_list[j]
             logger.info("  Проверяем конкурента: %s (%s)", comp_article, comp_brand)
 
             try:
@@ -209,6 +219,7 @@ def check_prices() -> None:
             if result is None:
                 logger.warning("  Не удалось получить цену для %s", comp_article)
             else:
+                result["input_name"] = comp_name
                 logger.info("  Цена %s: %.2f руб. (%s)", comp_article, result["price"], result["catalog"])
                 prices[comp_article] = {
                     "price": result["price"],

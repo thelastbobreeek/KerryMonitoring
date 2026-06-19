@@ -17,7 +17,8 @@ print(f"Прочитано {len(articles)} артикулов")
 all_brands: list[str] = []
 seen_brands: set[str] = set()
 for data in articles.values():
-    for brand in data["competitors"].values():
+    for competitor in data["competitors"].values():
+        brand = competitor["brand"] if isinstance(competitor, dict) else competitor
         if brand not in seen_brands:
             all_brands.append(brand)
             seen_brands.add(brand)
@@ -29,7 +30,9 @@ for our_article, data in articles.items():
     our_price = round(random.uniform(100, 1000), 2)
 
     comp_best: dict[str, dict | None] = {brand: None for brand in all_brands}
-    for comp_article, comp_brand in data["competitors"].items():
+    for comp_article, competitor in data["competitors"].items():
+        comp_brand = competitor["brand"] if isinstance(competitor, dict) else competitor
+        comp_name = competitor.get("name", "") if isinstance(competitor, dict) else ""
         price = round(random.uniform(80, 1100), 2)
         current = comp_best.get(comp_brand)
         if current is None or price < current["price"]:
@@ -38,6 +41,7 @@ for our_article, data in articles.items():
                 "article": comp_article,
                 "catalog": "",
                 "article_id": "",  # no real ID in test — links skipped intentionally
+                "input_name": comp_name,
             }
 
     rows.append({

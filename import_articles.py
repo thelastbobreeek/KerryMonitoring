@@ -37,28 +37,61 @@ def _parse_rows(rows: list[tuple], limit: int | None = None) -> dict[str, dict]:
     for i, row in enumerate(rows):
         if limit and i >= limit:
             break
-        if len(row) < 5:
+        if len(row) < 7:
             continue
 
-        our_brand, our_article, comp_brand, competitor_article, name = (
-            _clean_value(row[0]),
-            _normalize_article(_clean_value(row[1])),
-            _clean_value(row[2]),
-            _normalize_article(_clean_value(row[3])),
-            _clean_value(row[4]),
+        comp_brand, competitor_article, competitor_name, our_article, our_name = (
+            _clean_value(row[1]),
+            _normalize_article(_clean_value(row[2])),
+            _clean_value(row[3]),
+            _normalize_article(_clean_value(row[5])),
+            _clean_value(row[6]),
         )
-        volume = _clean_value(row[5]) if len(row) > 5 else ""
 
         if not our_article or not competitor_article or our_article == competitor_article:
             continue
 
         if our_article not in result:
-            result[our_article] = {"brand": our_brand, "name": name, "volume": volume, "competitors": {}}
+            result[our_article] = {
+                "brand": "Kerry",
+                "name": our_name,
+                "competitors": {},
+            }
 
         if competitor_article not in result[our_article]["competitors"]:
-            result[our_article]["competitors"][competitor_article] = comp_brand
+            result[our_article]["competitors"][competitor_article] = {
+                "brand": comp_brand,
+                "name": competitor_name,
+            }
 
     return result
+
+
+def _xlsx_row_is_white(row: tuple) -> bool:
+    for cell in row[:7]:
+        fill = cell.fill
+        if fill.fill_type is None:
+            continue
+
+        color = fill.fgColor
+        if color.type == "rgb" and color.rgb in {"FFFFFF", "FFFFFFFF", "00FFFFFF"}:
+            continue
+        if color.type == "indexed" and color.indexed in {9, 64}:
+            continue
+        return False
+    return True
+
+
+def _xls_row_is_white(workbook: xlrd.book.Book, sheet: xlrd.sheet.Sheet, row_idx: int) -> bool:
+    for col_idx in range(min(sheet.ncols, 7)):
+        xf = workbook.xf_list[sheet.cell_xf_index(row_idx, col_idx)]
+        background = xf.background
+        if background.fill_pattern == 0:
+            continue
+        if background.pattern_colour_index in {9, 64}:
+            continue
+        return False
+    return True
 
 
 def read_articles_from_xls(path: str, limit: int | None = None) -> dict[str, dict]:
@@ -66,21 +99,20 @@ def read_articles_from_xls(path: str, limit: int | None = None) -> dict[str, dic
         import openpyxl
         wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
         ws = wb.active
-        rows = list(ws.iter_rows(min_row=2, values_only=True))
+        rows = [
+            tuple(cell.value for cell in row)
+            for row in ws.iter_rows(min_row=2)
+            if _xlsx_row_is_white(row)
+        ]
         wb.close()
         return _parse_rows(rows, limit)
 
-    workbook = xlrd.open_workbook(path)
+    workbook = xlrd.open_workbook(path, formatting_info=True)
     sheet = workbook.sheet_by_index(0)
-    total_rows = min(sheet.nrows, limit) if limit else sheet.nrows
-    rows = [
-        tuple(sheet.cell(row_idx, col) for col in range(sheet.ncols))
-        for row_idx in range(1, total_rows)
-    ]
-    # xlrd cells need special cleaning — wrap them so _parse_rows can use _clean_value
     raw_rows = [
         tuple(_clean_xls_cell(sheet.cell(row_idx, col)) for col in range(sheet.ncols))
-        for row_idx in range(1, total_rows)
+        for row_idx in range(1, sheet.nrows)
+        if _xls_row_is_white(workbook, sheet, row_idx)
     ]
     return _parse_rows(raw_rows, limit)
 
@@ -108,10 +140,15 @@ def _format_articles(articles: dict) -> str:
         lines.append(f"    {repr(our_article)}: {{")
         lines.append(f'        "brand": {repr(data["brand"])},')
         lines.append(f'        "name": {repr(data["name"])},')
-        lines.append(f'        "volume": {repr(data.get("volume", ""))},')
         lines.append(f'        "competitors": {{')
-        for comp_article, comp_brand in data["competitors"].items():
-            lines.append(f"            {repr(comp_article)}: {repr(comp_brand)},")
+        for comp_article, competitor in data["competitors"].items():
+            if isinstance(competitor, dict):
+                lines.append(
+                    f"            {repr(comp_article)}: "
+                    f'{{"brand": {repr(competitor["brand"])}, "name": {repr(competitor.get("name", ""))}}},'
+                )
+            else:
+                lines.append(f"            {repr(comp_article)}: {repr(competitor)},")
         lines.append("        },")
         lines.append("    },")
     lines.append("}")
